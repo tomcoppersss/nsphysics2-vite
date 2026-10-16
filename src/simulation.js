@@ -1,0 +1,1487 @@
+// Global variables
+
+let simulation;
+let simulationID;
+let isRunning = false;
+
+let canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+
+let worldWidth = 432;
+let worldHeight = 243;
+let scale;
+
+// General sim
+
+function initialiseSimulation(selectElement, oldSimState) {
+
+    let leftSidebar = document.getElementById('leftSidebar');
+    let rightSidebar = document.getElementById('rightSidebar');
+    let sim;
+    
+    function postSelectionLogic() {
+        // just stuff that needs to be done AFTER the switch statement below, but is done regardless of the case
+        selectElement.dataset.lastSelected = selectElement.value;
+        cancelAnimationFrame(simulationID);
+        isRunning = false;
+    }
+   
+    switch (selectElement.value) {
+        case selectElement.dataset.lastSelected:
+            postSelectionLogic();
+
+            return oldSimState; // do nothing if select same one
+
+        case 'Create your own':
+            // initialise empty general sim
+            postSelectionLogic();
+
+
+
+            leftSidebar.innerHTML = `
+                <div style="height: 10%; background-color: #191A25;"><p style="margin: 0">Object creation</p></div>
+
+                <div id="objectListContainer" style="height: 80%; max-height: 80%; overflow-y: scroll;">
+                    
+                </div>
+
+                <div id="newObjectButtonContainer" style="width: 100%; height: 10%; background-color: #191A25;">
+                <button style="width: 90%; height: 80%; margin-left: 5%; margin-top: 2.5%;">+ New Object</button>
+                </div>
+            `;
+
+            rightSidebar.innerHTML = `
+            
+                <div style="height: 10%; background-color: #191A25;"><p style="margin: 0;">Force creation</p></div>
+
+                <div id="forceListContainer" style="height: 80%; max-height: 80%; overflow-y: scroll;">
+                    
+                </div>
+
+                <div id="newForceButtonContainer" style="width: 100%; height: 10%; background-color: #191A25;">
+                <button style="width: 90%; height: 80%; margin-left: 5%; margin-top: 2.5%;">+ New Force</button>
+                </div>
+
+            `;
+
+            // Add event listeners
+
+            // Object menus
+
+            document.getElementById('objectListContainer').addEventListener('click', e => {
+                const btn = e.target.closest('button');
+                if (!btn) return;
+                const obj = simulation.objects.get(btn.dataset.id);
+                obj[btn.dataset.action]();
+            });
+
+            document.getElementById('newObjectButtonContainer').addEventListener('click', e => {
+                const btn = e.target.closest('button');
+                if (!btn) return;
+                new GeneralSimObject(null);
+            });
+
+            document.getElementById('forceListContainer').addEventListener('click', e => {
+                const btn = e.target.closest('button');
+                if (!btn) return;
+                const force = simulation.forces.get(btn.dataset.id);
+                force[btn.dataset.action]();
+            });
+
+            document.getElementById('newForceButtonContainer').addEventListener('click', e => {
+                let btn = e.target.closest('button');
+                if (!btn) return;
+                new Force(null);
+            });
+
+            sim = {
+                type: 'Create your own',
+                objects: new Map(),
+                forces: new Map(),
+                objectToForces: new Map(),
+                forceToObjects: new Map(),
+
+                updateCanvas() {
+                    clearCanvas();
+                    this.objects.forEach((value, key) => {
+                        value.draw(ctx);
+                    });
+                    const forceOverlay = document.getElementsByClassName('addObjectsToForceOverlay')[0];
+                    if (forceOverlay) {
+                        this.forceToObjects.get(this.forces.get(parseInt(forceOverlay.id))).forEach(object => {
+                            object.drawOutline();
+                        })
+                    };
+                },
+
+                playPauseSimulation() {
+                    if (!isRunning) {
+                        this.runSimulation(this.objects, this.objectToForces);
+                    } else {
+                        this.pauseSimulation();
+                    }
+                },
+
+                runSimulation(objects, objectToForces) {
+
+                    if (objects.size === 0) return; // no point 
+
+                    // Localising variables for quicker access
+                    const canvas = document.getElementById('canvas');
+                    const ctx = canvas.getContext("2d");
+                    ctx.scale(5, 5);
+                    console.log(ctx.getTransform());
+                    const objectEntries = Array.from(objects.values()); 
+
+                    resizeCanvas();
+                    isRunning = true;
+
+                    const animate = (timestamp) => {
+
+                        const secondsElapsed = timestamp / 1000; // timestamp is in ms but time inputs are in s
+
+                        // clear canvas
+                        ctx.clearRect(0, 0, worldWidth, worldHeight);
+                    
+                        for (let i = 0; i < objectEntries.length; i++) {
+                            // sum resultant force
+                            const object = objectEntries[i];
+                            object.current.Fx = 0;
+                            object.current.Fy = 0;
+                            const forces = objectToForces.get(object);
+                            if (forces.length != 0) { // without this selection, NaN logic errors can occur if forces.length = 0
+                                for (let j = 0; j < forces.length; j++) {
+                                    const force = forces[j];
+                                    if (force.startTime <= secondsElapsed < force.endTime) {
+                                        object.current.Fx += force.Fx;
+                                        object.current.Fy += force.Fy;
+                                    }
+                                }
+                            }
+                            object.updatePos();
+                            object.draw(ctx);
+                            this.projectileHitWall(object);
+                        }
+
+                        for (let i = 0; i < objectEntries.length; i++) { // brute force O(n^2), works for few objects.
+                            for (let j = i+1; j < objectEntries.length; j++) {
+                                if (detectCollision(objectEntries[i], objectEntries[j])) {
+                                    resolveCollison(objectEntries[i], objectEntries[j]);
+                                }
+                            }
+                        }
+                        
+                        
+                        if (isRunning) {simulationID = requestAnimationFrame(animate)} // 60fps
+                    }
+
+                    simulationID = requestAnimationFrame(animate);
+                },
+
+                pauseSimulation() {
+                    isRunning = false;
+                    cancelAnimationFrame(simulationID);
+                },
+
+                stopSimulation() {
+                    console.log('stop');
+                    this.pauseSimulation();
+                    clearCanvas();
+                    this.objects.forEach(obj => {
+                        Object.keys(obj.initial).forEach(key => {
+                            obj.current[key] = obj.initial[key];
+                        })
+                        obj.draw(ctx);
+                    })
+                },
+
+                projectileHitWall(projectile) {
+
+                    const restitution = 0.65;
+
+                    if (projectile.current.x + projectile.radius >= worldWidth) {
+                        // right side
+                        projectile.current.x = worldWidth - projectile.radius;
+                        projectile.current.Vx = -(projectile.current.Vx) * restitution;
+                    }
+                    if (projectile.current.x <= projectile.radius) {
+                        // left side
+                        projectile.current.x = projectile.radius;
+                        projectile.current.Vx = -(projectile.current.Vx) * restitution;
+                    }
+                    if (projectile.current.y + projectile.radius >= worldHeight) {
+                        // top
+                        projectile.current.y = worldHeight - projectile.radius;
+                        projectile.current.Vy = -(projectile.current.Vy) * restitution;
+                    }
+                    if (projectile.current.y <= projectile.radius) {
+                        // ground
+                        projectile.current.y = projectile.radius;
+                        projectile.current.Vy = -(projectile.current.Vy) * restitution;
+                    }
+
+                }
+            }
+            
+            sim.updateCanvas();
+            return sim;
+
+        case 'Projectile motion':
+
+            // intiialise projectile motion sim
+
+            postSelectionLogic();
+
+            sim = {
+
+                type: 'Projectle motion',
+                cannon: new Cannon(45, 50, 10, 10),
+                cannonballs: [],
+                gravity: 9.81,
+                airResistance: 0,
+                showVectors: false,
+                showProjectilePath: false,
+
+                updateCanvas() {
+                    console.log('update');
+                    clearCanvas();
+                    this.cannon.draw(ctx);
+                    this.cannonballs.forEach(ball => {ball.draw(ctx)});
+                },
+
+                runSimulation() {
+
+                    isRunning = true;
+
+                    const animate = () => {
+
+                        clearCanvas();
+                        this.cannon.draw(ctx);
+                        this.cannonballs.forEach(ball => {
+                            ball.updatePos();
+                            if (simulation.showProjectilePath) {ball.drawPath(ctx)}
+                            ball.draw(ctx);
+                            this.projectileHitWall(ball);
+                            }
+                        )
+                        
+                        if (this.cannonballs.length > 0) {simulationID = requestAnimationFrame(animate)
+
+                        } else {isRunning = false;}
+
+                    };
+
+                    simulationID = requestAnimationFrame(animate);
+
+                },
+                
+                pauseSimulation() {
+                    isRunning = false;
+                    cancelAnimationFrame(simulationID);
+                },
+
+                projectileHitWall(projectile) {
+
+                    const restitution = 0.65;
+
+                    if (projectile.current.x + projectile.radius >= worldWidth) {
+                        // right side
+                        projectile.current.x = worldWidth - projectile.radius;
+                        projectile.current.Vx = 0;
+                    }
+                    if (projectile.current.x <= projectile.radius) {
+                        // left side
+                        projectile.current.x = projectile.radius;
+                        projectile.current.Vx = 0;
+                    }
+                    if (projectile.current.y + projectile.radius >= worldHeight) {
+                        // top
+                        projectile.current.y = worldHeight - projectile.radius;
+                        projectile.current.Vy = -(projectile.current.Vy) * restitution;
+                    }
+                    if (projectile.current.y <= projectile.radius) {
+                        // ground
+                        projectile.current.y = projectile.radius;
+                        projectile.current.Vy = 0;
+                        projectile.current.Vx = 0;
+
+                        projectile.landed = true;
+                    }
+
+
+                }
+
+            };
+
+            // Initialise HTML
+            leftSidebar.innerHTML = `
+            <div style="height: 10%; max-height: 10%; background-color: #191A25;">
+            
+            <div style="height: 10%; display: flex; flex-direction: column; margin-left: 10px;">
+                <p style="width: 100%; height: calc(100% / 3);">Edit simulation</p>
+                <p>All units should be given in SI units.</p>
+            </div>
+            
+            </div>
+
+            <div style="height: 80%; max-height: 80%; overflow-y: scroll; display: flex; flex-direction: column; margin-left: 10px;">
+                
+                <p style="width: 100%;">Edit cannon</p>
+            
+                <div style="height: calc(100% / 3);">
+        
+                    <div id="cannonProperties" class="propertyGrid">
+
+                        <label for="editCannonAngle">Cannon angle</label>
+                        <input id="editCannonAngle" type="number" name="angle" value="${sim.cannon.angle}">
+
+                        <label for="editCannonballSpeed">Cannonball speed</label>
+                        <input id="editCannonballSpeed" type="number" name="cannonballSpeed" value="${Math.hypot(sim.cannon.cannonballVx, sim.cannon.cannonballVy)}">
+
+                        <label for="editCannonX">Cannon X</label>
+                        <input id="editCannonX" type="number" name="cannonX" value="${sim.cannon.x}">
+
+                        <label for="editCannonHeight">Cannon height</label>
+                        <input id="editCannonHeight" type="number" name="cannonY" value="${sim.cannon.y}">
+                        
+                    </div>
+                </div>
+
+                <div style="height: calc(100% / 3);">
+                    <div style="height: 10%;">
+                        <p>Edit world</p>
+                    </div>
+                    <div id="simulationProperties" class="propertyGrid">
+                        
+                        <label for="editGravity">Gravity</label>
+                        <input id="editGravity" type="number" name="gravity" value="${sim.gravity}">
+
+                        <label for="editAirResistance">Air resistance 
+                            <button class="tooltip" style="width: 16px; height: 16px;" data-text="Drag force coeffecient. Use values between 0 and 0.001">i</button>
+                        </label>
+                        <input editAirResistance="edit" type="number" name="airResistance" value="${sim.airResistance}">
+
+                        <label for="showVectors">Show vectors</label>
+                        <input id="showVectors" type="checkbox" name="showVectors" value="${sim.showVectors}">
+
+                        <label for="showProjectilePath">Show projectile path</label>
+                        <input id="showProjectilePath" type="checkbox" name="showProjectilePath" value="${sim.showProjectilePath}">
+                        
+                    </div>
+                </div>
+
+                <div style="height: calc(100% / 3);">
+                    <div style="height: 10%;">
+                        <p>Edit projectiles</p>
+                    </div>
+                    <div id="cannonballProperties"class="propertyGrid">
+
+                        <label for="editCannonballMass">Cannonball mass</label>
+                        <input id="editCannonballMass" type="number" name="projectileMass" value="1">
+
+                        <label for="editCannonballRadius">Cannonball size</label>
+                        <input id="editCannonballRadius" type="number" name="projectileRadius" value="5">
+                        
+                    </div>
+                </div>
+
+
+            </div>
+
+            <div id="newObjectButtonContainer" style="width: 100%; height: 10%; background-color: #191A25;">
+            <button style="width: 90%; height: 80%; margin-left: 5%; margin-top: 2.5%;" onclick="simulation.cannon.fire()">Fire Cannon</button>
+            </div>
+
+            `;
+
+            rightSidebar.innerHTML = ``;
+
+
+            document.getElementById('cannonProperties').addEventListener('input', e => {
+                    if (e.target.tagName === 'INPUT') {
+                        let value = Number(e.target.value);
+                        if (e.target.value === "") {value = 0};
+                        switch (e.target.name) {
+                            case 'angle':
+                                if  (!(0 <= value) && (value <= 90)) return;
+                                sim.cannon.angle = value;
+                                sim.cannon.angleRadians = sim.cannon.angle * Math.PI / 180;
+                                sim.cannon.cannonballVx = sim.cannon.cannonballSpeed * Math.cos(sim.cannon.angleRadians);
+                                sim.cannon.cannonballVy = sim.cannon.cannonballSpeed * Math.sin(sim.cannon.angleRadians);
+                                break;
+                            case 'cannonballSpeed':
+                                sim.cannon.cannonballVx = value * Math.cos(sim.cannon.angleRadians);
+                                sim.cannon.cannonballVy = value * Math.sin(sim.cannon.angleRadians);
+                                break;
+                            case 'cannonX':
+                                sim.cannon.x = value;
+                                sim.cannon.pivot.x = 12.5 + sim.cannon.x;
+                                break;
+                            case 'cannonY':
+                                sim.cannon.y = value;
+                                sim.cannon.pivot.y = sim.cannon.y;
+                                break;
+                        }
+                        sim.cannon.determineBallPos();
+                        sim.updateCanvas();
+                }
+            })
+
+            document.getElementById('simulationProperties').addEventListener('input', e => {
+                if (e.target.tagName === 'INPUT') {
+                    if (e.target.type === 'checkbox') {
+                        sim[e.target.name] = e.target.checked;
+                        return;
+                    }
+                    sim[e.target.name] = Number(e.target.value);
+                }
+            })
+
+            sim.runSimulation();
+
+            return sim;
+
+        case 'Momentum':
+
+            postSelectionLogic();
+
+            // momentum
+            break;
+            
+        case 'Select sim:':
+            selectElement.dataset.lastSelected = selectElement.value;
+            // do nothing
+            break;
+    }
+    
+}
+
+
+simulation = initialiseSimulation(document.getElementById('selectSim'), null);
+document.getElementById('selectSim').value = 'Select sim:';
+
+
+
+// Canvas initialisation 
+
+
+// Taken from https://medium.com/@doomgoober/understanding-html-canvas-scaling-and-sizing-c04925d9a830. Used to fix canvas blurriness.
+
+    const originalWidth = canvas.width;
+    const originalHeight = canvas.height;
+
+    render();
+
+    function render() {
+        let dimensions = getObjectFitSize(
+            true,
+            canvas.clientWidth,
+            canvas.clientHeight,
+            canvas.width,
+            canvas.height
+        );
+
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = dimensions.width * dpr;
+        canvas.height = dimensions.height * dpr;
+
+        let ratio = Math.min(canvas.clientWidth / originalWidth, canvas.clientHeight / originalHeight);
+
+        ctx.scale(ratio * dpr, ratio * dpr);
+        
+    }
+
+    // adapted from: https://www.npmjs.com/package/intrinsic-scale
+    function getObjectFitSize(
+        contains /* true = contain, false = cover */,
+        containerWidth,
+        containerHeight,
+        width,
+        height
+    ) {
+        let doRatio = width / height;
+        let cRatio = containerWidth / containerHeight;
+        let targetWidth = 0;
+        let targetHeight = 0;
+        let test = contains ? doRatio > cRatio : doRatio < cRatio;
+
+        if (test) {
+            targetWidth = containerWidth;
+            targetHeight = targetWidth / doRatio;
+        } else {
+            targetHeight = containerHeight;
+            targetWidth = targetHeight * doRatio;
+        }
+
+        return {
+            width: targetWidth,
+            height: targetHeight,
+            x: (containerWidth - targetWidth) / 2,
+            y: (containerHeight - targetHeight) / 2
+        };
+    }
+
+// End of taken code snippet
+
+
+
+function resizeCanvas() {
+
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width;
+    canvas.height = rect.height;
+    scale = Math.min(canvas.width / worldWidth, canvas.height / worldHeight);
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    simulation.updateCanvas();
+}
+resizeCanvas();
+
+function clearCanvas() {
+    ctx.clearRect(0, 0, worldWidth, worldHeight);
+}
+
+function drawOutline(obj) {
+    ctx.strokeStyle = '#d6cb00';
+    ctx.strokeRect(obj.current.x - (obj.radius), obj.current.y - (obj.radius), (obj.radius*2) + 2, (obj.radius*2) + 2);
+}
+
+
+// worry later
+
+
+// const temp = document.getElementById('saveSimReminder');
+// const clone = temp.content.cloneNode(true);
+// document.body.appendChild(clone);
+
+
+
+// Event listeners
+
+    window.addEventListener('resize', resizeCanvas);
+
+    document.getElementById('simulationButtonsContainer').addEventListener('click', e => {
+        const btn = e.target.closest('button');
+        if (!btn) return;
+        simulation[btn.dataset.action]();
+    })
+
+    document.getElementById('selectSim').addEventListener('change', e => {
+        const selectElement = document.getElementById('selectSim');
+        if (selectElement.value === "Select sim:") return;
+        simulation = initialiseSimulation(selectElement, simulation);
+        console.log(simulation);
+
+    });
+
+    canvas.addEventListener('click', e => {
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = (e.clientX - rect.left) / scale;
+        const mouseY = (canvas.clientHeight - (e.clientY - rect.top)) / scale;
+        console.log(mouseX, mouseY);
+    })
+
+
+
+// Validation functions
+
+
+// Classes
+
+
+// General sim 
+
+class GeneralSimObject {
+    
+    static nextID = 0;
+
+    constructor(projectileToCopy) { // projectileToCopy is not necessarily needed here
+
+        // Add to object maps
+        this.ID = String(++GeneralSimObject.nextID);
+        simulation.objects.set(this.ID, this);
+        simulation.objectToForces.set(this, []);
+        this.name = `Object ${this.ID}`;
+
+        this.current = {
+            x: Number(),
+            y: Number(),
+            Vx: Number(),
+            Vy: Number(),
+            ax: Number(),
+            ay: Number(),
+            Fx: Number(),
+            Fy: Number(),
+        };
+
+        if (!projectileToCopy) {
+
+            // Physics properties
+            this.initial = {
+                x: Number(),
+                y: Number(),
+                Vx: Number(),
+                Vy: Number()
+            };
+            
+            this.mass = 1;
+            this.affectedByGravity = true;
+            
+            // Geometrical properties 
+            this.radius = 10;      
+            this.colour = '#ff0000';
+
+            // Add HTML to object list container
+            let objectListContainer = document.getElementById('objectListContainer');
+            let newObjectDiv = document.createElement('div');
+            newObjectDiv.style = `width: 100%; height: 20%;`;
+            newObjectDiv.className = `objectMenu`;
+            newObjectDiv.id = `object${this.ID}Menu`;
+            objectListContainer.appendChild(newObjectDiv);
+            newObjectDiv.innerHTML = `
+
+                    <div style="background-color: #0F111A;">
+                        <div class="title">
+                            <p style="margin: 0;">${this.name}</p>
+                        </div>
+                    </div>
+                    
+                    <div style="
+                        height: 100%;
+                        display: flex;
+                        background-color: #1E1F2B;">
+
+                        <div style="width: calc(100% / 3);">
+                            
+                            <button data-action="edit" data-ID="${this.ID}" class="objectPropertyButton">
+
+                            <span class="material-symbols-outlined">edit</span>
+                            </button>
+                        </div>
+
+                        <div style="width: calc(100% / 3);">
+                            
+                            <button data-action="copy" data-ID="${this.ID}" class="objectPropertyButton">
+
+                            <span class="material-symbols-outlined">content_paste</span>
+                            </button>
+                        </div>
+
+                        <div style="width: calc(100% / 3);">
+                            
+                            <button data-action="delete" data-ID="${this.ID}" class="objectPropertyButton">
+
+                            <span class="material-symbols-outlined">delete</span>
+                            </button>
+                        </div>
+
+                            `;
+        }
+        
+        else { // constructor for making an identical object from an existing one
+
+            // Physics properties
+
+            this.initial = {
+                x: projectileToCopy.initial.x,
+                y: projectileToCopy.initial.y,
+                Vx: projectileToCopy.initial.Vx,
+                Vy: projectileToCopy.initial.Vy,
+            };
+
+            this.mass = projectileToCopy.mass;
+            this.affectedByGravity = projectileToCopy.affectedByGravity;
+
+            // Geometrical properties 
+            this.radius = projectileToCopy.radius; 
+            this.colour = projectileToCopy.colour;
+
+
+            // Write HTML directly below current one
+
+            let objectToCopyMenu = document.getElementById(`object${projectileToCopy.ID}Menu`);
+            if (document.getElementById(`editObject${projectileToCopy.ID}`)) {
+                objectToCopyMenu = document.getElementById(`editObject${projectileToCopy.ID}`)
+            }; // prevents new menu from being written in between objectToCopyMenu and its respective edit menu (if the edit menu is open)
+
+            let newObjectDiv = document.createElement('div');
+            newObjectDiv.style = `width: 100%; height: 20%;`;
+            newObjectDiv.className = `objectMenu`;
+            newObjectDiv.id = `object${this.ID}Menu`;
+
+            objectToCopyMenu.insertAdjacentElement("afterend", newObjectDiv);
+            newObjectDiv.innerHTML = `
+                <div style="background-color: #0F111A;">
+                        <div class="title">
+                            <p style="margin: 0;">${this.name}</p>
+                        </div>
+                    </div>
+                    
+                    <div style="
+                        height: 100%;
+                        display: flex;
+                        background-color: #1E1F2B;">
+
+                        <div style="width: calc(100% / 3);">
+                            
+                            <button data-action="edit" data-ID="${this.ID}" class="objectPropertyButton">
+
+                            <span class="material-symbols-outlined">edit</span>
+                            </button>
+                        </div>
+
+                        <div style="width: calc(100% / 3);">
+                            
+                            <button data-action="copy" data-ID="${this.ID}" class="objectPropertyButton">
+
+                            <span class="material-symbols-outlined">content_paste</span>
+                            </button>
+                        </div>
+
+                        <div style="width: calc(100% / 3);">
+                            
+                            <button data-action="delete" data-ID="${this.ID}" class="objectPropertyButton">
+
+                            <span class="material-symbols-outlined">delete</span>
+                            </button>
+                        </div>
+                
+                            `;
+
+        }
+
+        Object.keys(this.initial).forEach(key => {
+            this.current[key] = this.initial[key];
+        })
+
+        this.draw(ctx);
+
+    }
+
+    // Methods 
+
+
+    // Physics methods: updating and drawing position.
+
+    draw(ctx) {
+
+        ctx.fillStyle = this.colour;
+        ctx.beginPath();
+        ctx.arc(this.current.x, this.current.y, this.radius, 0, 2 * Math.PI);
+        ctx.fill();
+        
+    }
+
+    updatePos() { 
+
+        // Physics
+
+        // dt is 1/60s or ~16ms
+        this.current.ax = this.current.Fx / this.mass;
+        this.current.Vx += this.current.ax / 60; 
+        const dx = (this.current.Vx / 60) + (0.5 * this.current.ax * (1/3600));
+        this.current.x += dx;
+
+        this.current.ay = this.current.Fy / this.mass;
+        if (this.affectedByGravity) {this.current.ay -= 9.81};
+        this.current.Vy += this.current.ay / 60; 
+        const dy = (this.current.Vy / 60) + (0.5 * this.current.ay * (1/3600));
+        this.current.y += dy;
+
+    }
+
+
+    isClicked(mouseX, mouseY) {
+
+        const dx = mouseX - this.current.x;
+        const dy = mouseY - this.current.y;
+
+        return ((dx**2) + (dy**2) <= (this.radius**2));
+
+    }
+
+
+    // Used in HTML 
+
+
+    saveChanges() {
+        // Captures inputs from the edit menu and saves them
+        simulation.pauseSimulation();
+        document.getElementById(`object${this.ID}PropertyGrid`).querySelectorAll(`input, select`).forEach(element => {
+            switch (element.name) {
+                case 'x': case 'y': case 'Vx': case 'Vy':
+                    this.initial[element.name] = Number(element.value);
+                    break;
+                case 'mass':
+                    this.mass = Number(element.value);
+                    break;
+                case 'radius':
+                    this.radius = Number(element.value);
+                    break;
+                case 'name':
+                    this.name = element.value;
+                    break;
+                case 'colour':
+                    this.colour = element.value;
+                    break;
+                case 'affectedByGravity':
+                    this.affectedByGravity = element.value === 'True';
+                    break;
+        }
+    });
+
+        Object.keys(this.initial).forEach(key => {
+            this.current[key] = this.initial[key];
+        })
+        simulation.updateCanvas();
+    }
+
+    closeEditMenu() {
+        document.getElementById(`editObject${this.ID}`).remove(); // gets the menu for this object and removes it
+    }
+
+
+    edit()  {
+
+        // For when edit button on object menu is clicked 
+
+        if (document.getElementById(`editObject${this.ID}`)) return; // prevents multiple edit menus for the same object
+
+        // Write HTML
+        let thisMenu = document.getElementById(`object${this.ID}Menu`);
+        let thisEditMenu = document.createElement('div');
+        thisEditMenu.id = `editObject${this.ID}`;
+        thisEditMenu.style = `display: flex; flex-direction: column; height: 60%;`
+        thisEditMenu.innerHTML = `
+
+                    <div style="background-color: #0F111A; width: 100%; height: 10%;">
+                        <div class="title">
+                            <p style="margin: 0;">Edit object '${this.name}'</p>
+                        </div>
+                    </div>
+                    
+                    <div style="height: 80%; display: flex; flex-direction: column;">
+
+                        <div id="object${this.ID}PropertyGrid" class="propertyGrid"; style="width: 90%; height: 100%; align-self: center; justify-self: center;">
+                            <label for="editInitialX">X coordinate:</label>
+                            <input type="number" id="editInitialX" name="x" value="${this.initial.x}">
+
+                            <label for="editInitialY">Y coordinate:</label>
+                            <input type="number" id="editInitialY" name="y" value="${this.initial.y}">
+
+                            <label for="editInitialVx">Initial X velocity:</label>
+                            <input type="number" id="editInitialVx" name="Vx" value="${this.initial.Vx}">
+
+                            <label for="editInitialVy">Initial Y velocity:</label>
+                            <input type="number" id="editInitialVy" name="Vy" value="${this.initial.Vy}">
+
+                            <label for="editMass">Mass:</label>
+                            <input type="number" id="editMass" name="mass" value="${this.mass}">
+
+                            <label for="editAffectedByGravity">Gravity-affected: </label>
+                            <select id="editAffectedByGravity" name="affectedByGravity">
+                                <option ${this.affectedByGravity === true ? 'selected' : ''}>True</option>
+                                <option ${this.affectedByGravity === false ? 'selected' : ''}>False</option>
+                            </select>
+
+                            <label for="editName">Object name:</label>
+                            <input type="text" id="editName" name="name" value="${this.name}">
+                            
+                            <label for="editXLength">Object radius:</label>
+                            <input type="number" id="editRadius" name="radius" value="${this.radius}">
+
+                            <label for="editColour">Object colour: </label>
+                            <input type="text" id="editColour" name="colour" value="${this.colour}">
+                         </div>
+                    </div>
+            
+                    <div style="height: 10%; display: grid; grid-template-columns: 50% 50%; background-color: #0F111A;">
+
+            
+
+                        <div style="display: flex; justify-content: center; align-items: center; margin: 0;">
+                            <button type="button" data-action="saveChanges" data-id="${this.ID}" style="height: 80%; width: 80%;">
+                                Save
+                            </button>
+                        </div>
+
+                        <div style="display: flex; justify-content: center; align-items: center; margin: 0;">
+                            <button type="button" data-action="closeEditMenu" data-id="${this.ID}" style="height: 80%; width: 80%;">
+                                Close
+                            </button>
+                        </div>
+
+                    </div>
+        `;
+        
+        thisMenu.insertAdjacentElement(`afterend`, thisEditMenu);
+
+        simulation.updateCanvas();
+        
+
+    }
+
+    copy() {
+        new GeneralSimObject(this);
+    }
+    
+    delete() {
+
+        // Delete HTML
+        let menu = document.getElementById(`object${this.ID}Menu`);
+        menu.remove();
+        let editMenu = document.getElementById(`editObject${this.ID}`);
+        if (editMenu) {
+            editMenu.remove();
+        }
+
+
+        // Delete object from maps. It is then deleted as all references to it have been deleted.
+        simulation.objects.delete(this.ID);
+
+        const forces = simulation.objectToForces.get(this);
+        if (forces) {
+            for (const force of forces) {
+                const objects = simulation.forceToObjects.get(force);
+                if (objects) {
+                    simulation.objects.delete(obj);
+                    if (simulation.objects.size === 0) simulation.forceToObjects.delete(force);
+                }
+            }
+        }
+
+        simulation.objectToForces.delete(this);
+        simulation.updateCanvas();
+
+    }
+    
+}
+
+
+class Force {
+
+    static nextID = 0;
+
+    constructor(forceToCopy) {
+
+        // Add to object maps
+        this.ID = String(++Force.nextID);
+        simulation.forces.set(this.ID, this);
+        simulation.forceToObjects.set(this, []);
+        this.name = `Force ${this.ID}`;
+        this.clickObject = (e) => this.addObjectToThisForce(e);
+        this.cachedObjects = [];
+        this.cachedDeletedObjects = [];
+
+        if (!forceToCopy) {
+
+            this.Fx = Number();
+            this.Fy = Number();
+            this.startTime = Number();
+            this.endTime = Number();
+
+
+            // Write HTML
+            let forceListContainer = document.getElementById('forceListContainer');
+            let newForceDiv = document.createElement('div');
+            newForceDiv.style = `width: 100%; height: 20%;`;
+            newForceDiv.className = `objectMenu`;
+            newForceDiv.id = `force${this.ID}Menu`;
+            forceListContainer.appendChild(newForceDiv);
+            newForceDiv.innerHTML = `
+                    <div style="background-color: #0F111A;">
+                        <div class="title">
+                            <p style="margin: 0;">${this.name}</p>
+                        </div>
+                    </div>
+                    
+                    <div style="
+                        height: 100%;
+                        display: flex;
+                        background-color: #1E1F2B;">
+
+                        <div style="width: calc(100% / 3);">
+                            
+                            <button data-action="edit" data-ID="${this.ID}" class="objectPropertyButton">
+
+                            <span class="material-symbols-outlined">edit</span>
+                            </button>
+                        </div>
+
+                        <div style="width: calc(100% / 3);">
+                            
+                            <button data-action="copy" data-ID="${this.ID}" class="objectPropertyButton">
+
+                            <span class="material-symbols-outlined">content_paste</span>
+                            </button>
+                        </div>
+
+                        <div style="width: calc(100% / 3);">
+                            
+                            <button data-action="delete" data-ID="${this.ID}" class="objectPropertyButton">
+
+                            <span class="material-symbols-outlined">delete</span>
+                            </button>
+                        </div>
+                    </div>
+                    `;
+
+        } else {
+            this.Fx = forceToCopy.Fx;
+            this.Fy = forceToCopy.Fy;
+            this.startTime = forceToCopy.startTime;
+            this.endTime = forceToCopy.endTime;
+            this.ID = String(++Force.nextID);
+            this.name = `Force ${this.ID} (copy of '${forceToCopy.name}')`;
+
+            
+            // Write HTML
+            
+            let forceToCopyMenu = document.getElementById(`force${forceToCopy.ID}Menu`);
+            if (document.getElementById(`editObject${forceToCopy.ID}`)) {
+                objectToCopyMenu = document.getElementById(`editObject${forceToCopy.ID}`)
+            }; // prevents new menu from being written in between forceToCopyMenu and its respective edit menu (if the edit menu is open)
+
+            let newForceDiv = document.createElement('div');
+            newForceDiv.style = `width: 100%; height: 20%;`;
+            newForceDiv.className = `objectMenu`;
+            newForceDiv.id = `force${this.ID}Menu`;
+            forceToCopyMenu.insertAdjacentElement("afterend", newForceDiv);
+            newForceDiv.innerHTML = `
+            
+
+                    <div style="background-color: #0F111A;">
+                        <div class="title">
+                            <p style="margin: 0;">${this.name}</p>
+                        </div>
+                    </div>
+                    
+                    <div style="
+                        height: 100%;
+                        display: flex;
+                        background-color: #1E1F2B;">
+
+                        <div style="width: calc(100% / 3);">
+                            
+                            <button data-action="edit" data-ID="${this.ID}" class="objectPropertyButton">
+
+                            <span class="material-symbols-outlined">edit</span>
+                            </button>
+                        </div>
+
+                        <div style="width: calc(100% / 3);">
+                            
+                            <button data-action="copy" data-ID="${this.ID}" class="objectPropertyButton">
+
+                            <span class="material-symbols-outlined">content_paste</span>
+                            </button>
+                        </div>
+
+                        <div style="width: calc(100% / 3);">
+                            
+                            <button data-action="delete" data-ID="${this.ID}" class="objectPropertyButton">
+
+                            <span class="material-symbols-outlined">delete</span>
+                            </button>
+                        </div>
+                    </div>
+                    `;
+
+            }
+
+        }
+
+    saveChanges() {
+        // Captures inputs from the edit menu and saves them
+        pauseSimulation();
+        document.getElementById(`force${this.ID}PropertyGrid`).querySelectorAll(`input`).forEach(element => {
+            switch (element.type) {
+                case 'text':
+                    this[element.name] = String(element.value);
+                    break;
+                case 'number':
+                    this[element.name] = Number(element.value);
+                    break;
+            }
+    })}
+
+    closeEditMenu() {
+        document.getElementById(`editForce${this.ID}`).remove(); // gets the menu for this object and removes it
+    }
+
+    edit() {
+
+        if (document.getElementById(`editForce${this.ID}`)) return; // prevents multiple edit menus for the same object
+
+        // Write HTML
+        let thisMenu = document.getElementById(`force${this.ID}Menu`);
+        let thisEditMenu = document.createElement('div');
+
+        thisEditMenu.id = `editForce${this.ID}`;
+        thisEditMenu.style = `display: flex; flex-direction: column; height: 60%;`
+        thisEditMenu.innerHTML = `
+
+                    <div style="background-color: #0F111A; width: 100%; height: 10%;">
+                        <div class="title">
+                            <p style="margin: 0;">Edit force '${this.name}'</p>
+                        </div>
+                    </div>
+                    
+                    <div style="height: 80%; display: flex; flex-direction: column;">
+
+                        <div id="force${this.ID}PropertyGrid" class="propertyGrid"; style="width: 90%; height: 100%; align-self: center; justify-self: center;">
+                            <label>Force X:</label>
+                            <input type="number" name="Fx" value="${this.Fx}">
+
+                            <label>Force Y:</label>
+                            <input type="number" name="Fy" value="${this.Fy}">
+
+                            <label>Start time:</label>
+                            <input type="number" name="startTime" value="${this.startTime}">
+
+                            <label>End time:</label>
+                            <input type="number" name="endTime" value="${this.endTime}">
+
+                            <label>Name:</label>
+                            <input type="text" name="name" value="${this.name}">
+
+                            <label>Select objects:</label>
+                            <button type="button" data-ID="${this.ID}" data-action="addAffectedObjects">Click</button>
+                         </div>
+                    </div>
+            
+                    <div style="height: 10%; display: grid; grid-template-columns: 50% 50%; background-color: #0F111A;">
+
+            
+
+                        <div style="display: flex; justify-content: center; align-items: center; margin: 0;">
+                            <button type="button" data-action="saveChanges" data-ID="${this.ID}" style="height: 80%; width: 80%;">
+                                Save
+                            </button>
+                        </div>
+
+                        <div style="display: flex; justify-content: center; align-items: center; margin: 0;">
+                            <button type="button" data-action="closeEditMenu" data-ID="${this.ID}" style="height: 80%; width: 80%;">
+                                Close
+                            </button>
+                        </div>
+
+                    </div>`;
+
+        thisMenu.insertAdjacentElement(`afterend`, thisEditMenu);
+    }
+
+    copy() {
+        new Force(this);
+    }
+
+    delete() {
+
+        // Delete HTML
+
+        const menu = document.getElementById(`force${this.ID}Menu`);
+        menu.remove();
+        const editMenu = document.getElementById(`editForce${this.ID}`);
+        if (editMenu) {
+            editMenu.remove();
+        }
+
+        if (document.getElementById(`addObjectsToForce${this.ID}`)) {
+            document.getElementById(`addObjectsToForce${this.ID}`).remove();
+        }
+
+
+        simulation.forces.delete(this.ID);
+
+        simulation.forceToObjects.delete(this);
+
+        const objects = simulation.forceToObjects.get(this);
+        if (!objects) return;
+
+        for (const obj of objects) {
+            const forces = simulation.objectToForces.get(obj);
+            if (forces) {
+                forces.delete(this);
+                if (forces.size === 0) simulation.objectToForces.delete(obj);
+            }
+        }
+        
+    }
+
+    addObjectToThisForce(e) {
+        // for when an object is clicked
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = canvas.clientHeight - (e.clientY - rect.top);
+
+
+        simulation.objects.forEach((value) => {
+            if (value.isClicked(mouseX, mouseY)) { // Brute force O(n) method 🥱 works for few objects
+                if ((!(simulation.forceToObjects.get(this).includes(value)))) { // this is nested so we fewer comparisons are made. No point checking forceToObjects.get(this).includes(value) when value.isClicked(mouseX, mouseY) is false
+                
+                    console.log(`Force '${this.name}' was added to object '${value.name}'`);
+                    
+                    simulation.forceToObjects.get(this).push(value);
+                    objectToForces.get(value).push(this);
+
+                    // draw outline to show which objects are affected
+                    drawOutline(value);
+
+                } else { // object is clicked and it is affected by the force, in which case it is removed.
+                    
+                    simulation.forceToObjects.get(this).splice(simulation.forceToObjects.get(this).indexOf(value), 1);
+                    simulation.objectToForces.get(value).splice(simulation.objectToForces.get(value).indexOf(this), 1);
+            
+                    // Update canvas by removing the outline from the object that was removed
+
+                    simulation.updateCanvas();
+                    forceToObjects.get(this).forEach(object => (drawOutline(object)));
+
+                }
+            } 
+        })
+    }
+
+    addAffectedObjects() {
+
+        
+        if (document.getElementsByClassName('addObjectsToForceOverlay')[0]) {
+            document.getElementsByClassName('addObjectsToForceOverlay')[0].remove();
+        };
+
+        let addObjectsToForceOverlay = document.createElement('div');
+        addObjectsToForceOverlay.className = 'addObjectsToForceOverlay';
+        addObjectsToForceOverlay.id = 'addObjectsToForce${this.Id}';
+        addObjectsToForceOverlay.innerHTML = `<h2>Click on an object to have force '${this.name}' act on it or click it again to remove it.</h2>`;
+        document.querySelector('body').appendChild(addObjectsToForceOverlay);
+
+        let btn = document.getElementById(`force${this.ID}PropertyGrid`).querySelector('button');
+        if (btn.innerHTML === "Click") {
+            btn.innerHTML = "Save";
+            canvas.addEventListener('click', this.clickObject);
+            simulation.forceToObjects.get(this).forEach(obj => {drawOutline(obj)});
+
+        } else {
+            // Done
+
+            btn.innerHTML = "Click";
+            document.getElementsByClassName('addObjectsToForceOverlay')[0].remove();
+
+            simulation.updateCanvas(); // to remove outlines
+               
+            canvas.removeEventListener('click', this.clickObject)
+
+
+        };
+
+
+
+    }
+}
+
+// Projectile motion
+
+class Cannonball {
+
+    constructor(posX, posY, Vx, Vy) {
+
+        this.mass = Number(document.getElementById('editCannonballMass').value);
+        this.radius = Number(document.getElementById('editCannonballRadius').value);
+
+        this.current = {
+            x: posX,
+            y: posY,
+            Vx: Vx,
+            Vy: Vy,
+        };
+
+        this.surfaceArea = Math.PI * this.radius; // section normal to incoming airflow, or 1/2 the circumference
+        this.path = [{x: posX, y: posY}];
+        this.landed = false;
+        simulation.cannonballs.push(this);
+
+
+    }
+
+
+    updatePos() { 
+
+        if (this.landed) return;
+
+        if (simulation.airResistance !== 0) {
+
+            const dragForceX = simulation.airResistance * this.surfaceArea * (this.current.Vx ** 2);
+            const dragForceY = simulation.airResistance * this.surfaceArea * (this.current.Vy ** 2);
+
+            // resist current motion with air resistance
+            this.current.Vx -= Math.sign(this.current.Vx) * (dragForceX/this.mass) / 60 // dt is 1/60 s
+            this.current.Vy -= Math.sign(this.current.Vy) * (dragForceY/this.mass) / 60
+        }
+
+        this.current.Vy -= (simulation.gravity / 60);
+
+        this.current.x += this.current.Vx / 60;
+        this.current.y += this.current.Vy / 60;
+
+
+        if (simulationID % 3 === 0) {this.path.push({x: this.current.x, y: this.current.y})};
+
+
+    }
+
+    draw(ctx) {
+
+        ctx.fillStyle = "#000";
+        ctx.beginPath();
+        ctx.arc(this.current.x, this.current.y, this.radius, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.closePath();
+        
+    }
+
+    drawPath(ctx) {
+
+        ctx.beginPath();
+        ctx.moveTo(this.path[0].x, this.path[0].y)
+        for (const point of this.path) {
+            ctx.lineTo(point.x, point.y);
+        }
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+    }
+}
+
+
+class Cannon {
+    
+    constructor(cannonAngle, cannonballSpeed, cannonX, cannonY) {
+
+        this.angle = cannonAngle; // degrees
+        this.angleRadians = cannonAngle * Math.PI / 180;
+        this.cannonballSpeed = cannonballSpeed;
+        this.cannonballVx = cannonballSpeed * Math.cos(this.angle * Math.PI / 180);
+        this.cannonballVy = cannonballSpeed * Math.sin(this.angle * Math.PI / 180);
+        this.x = cannonX;
+        this.y = cannonY;
+
+        this.cannonLength = 40;
+        this.cannonHeight = 20;
+        this.pivot = {x: this.x + 12.5, y: this.y}; // point to rotate the cannon about, image pos = (10, this.height) Cannon relative pos to pivot = (-12.5, 0)
+
+
+        this.cannonImage = null;
+
+        const img = new Image();
+        img.src = `https://ia801504.us.archive.org/32/items/cannon_202104/cannon.png`;
+        img.onload = () => {
+            // Create an offscreen canvas the same size as the image
+            const offscreen = document.createElement('canvas');
+            offscreen.width = img.width;
+            offscreen.height = img.height;
+            const offCtx = offscreen.getContext('2d');
+
+            // Flip vertically while drawing into it
+            offCtx.translate(0, img.height);
+            offCtx.scale(1, -1);
+            offCtx.drawImage(img, 0, 0);
+
+            this.cannonImage = offscreen;
+
+            simulation.updateCanvas();
+        };
+
+        this.determineBallPos();
+        this.draw(ctx);
+    }
+
+
+
+    draw(ctx) {
+
+        if (!this.cannonImage) return; // hasn't loaded
+        // draw image
+
+        ctx.save();
+        ctx.translate(this.pivot.x, this.pivot.y); // rotation point is now at the cannon pivot
+        ctx.rotate(this.angleRadians); // radians
+        ctx.drawImage(this.cannonImage, -12.5, 0, this.cannonLength, this.cannonHeight);
+        ctx.restore();
+
+        // draw pivot
+        ctx.beginPath();
+        ctx.fillStyle = '#000';
+        ctx.arc(this.pivot.x, this.pivot.y, 5, 0, 2*Math.PI);
+
+        ctx.arc(this.ballX, this.ballY, 4, 0, 2*Math.PI);
+        ctx.fill();
+        ctx.closePath();
+
+    }
+
+    determineBallPos() {
+        // Ensure the balls have the correct starting position based on the cannon angle
+        // position vector from pivot to cannon muzzle = (25, 7.5)
+
+        const relX = (25 * Math.cos(this.angleRadians)) - (7.5 * Math.sin(this.angleRadians));
+        const relY = (25 * Math.sin(this.angleRadians)) + (7.5 * Math.cos(this.angleRadians));
+
+        this.ballX = this.pivot.x + relX;
+        this.ballY = this.pivot.y + relY;
+
+    }
+
+    fire() {
+
+        new Cannonball(this.ballX, this.ballY, this.cannonballVx, this.cannonballVy);
+        if (!isRunning) {simulation.runSimulation()};
+        
+    }
+
+}
+
+
+
+function detectCollision(a, b) {
+    const dx = a.current.x - b.current.x;
+    const dy = a.current.y - b.current.y;
+    const dist = (dx ** 2) + (dy ** 2);
+
+    return (dist <= (a.radius + b.radius) ** 2); // simplified Pythagoras since sqrt() is slow 
+}
+
+function resolveCollison(a, b) {
+
+    // Perfectly elastic collision
+
+    const dx = a.current.x - b.current.x;
+    const dy = a.current.y - b.current.y;
+    const dist = Math.sqrt((dx ** 2) + (dy ** 2));
+    if (dist === 0) return;
+
+    const nx = dx/dist;
+    const ny = dy/dist;
+    const vRel = (a.current.Vx - b.current.Vx) * nx + (a.current.Vy - b.current.Vy) * ny; // dot product
+
+    if (vRel >= 0) return; // objects are moving away from each other, no need to handle collision
+
+    const impulse = (2 * vRel) / (a.mass + b.mass);
+    // decreases a and increases b so they move apart
+
+    a.current.Vx -= impulse * b.mass * nx;
+    a.current.Vy -= impulse * b.mass * ny;
+    b.current.Vx += impulse * a.mass * nx;
+    b.current.Vy += impulse * a.mass * ny;
+
+    const overlap = (a.radius + b.radius) - dist;
+    if (overlap > 0) {
+        const totalMass = a.mass + b.mass;
+        const correction = 0.2; // reduces jitter by gradually moving the overlapping objects apart
+        a.current.x -= nx * overlap * (b.mass / totalMass) * correction;
+        a.current.y -= ny * overlap * (b.mass / totalMass) * correction;
+        b.current.x += nx * overlap * (a.mass / totalMass) * correction;
+        b.current.y += ny * overlap * (a.mass / totalMass) * correction;
+    }
+
+}
