@@ -246,12 +246,10 @@ button {
 .sidebar {
     background-color: var(--primary-bg);
     width: 15%;
-
     overflow-x: auto;
 }
 
 .sidebarEnd {
-
     height: 10%; 
     background-color: var(--dark-bg);
 }
