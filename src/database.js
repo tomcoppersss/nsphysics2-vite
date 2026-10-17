@@ -1,4 +1,4 @@
-import { supabase } from './node_modules/@supabase/src/lib/supabaseClient';
+import { supabase } from './lib/supabaseClient';
 
 console.log('db');
 
