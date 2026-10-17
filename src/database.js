@@ -3,6 +3,7 @@ import { supabase } from './lib/supabaseClient';
 console.log('db');
 
 (async () => {
-    const response = await supabase.from('user_data').select('*');
-    console.log(response);
+    const {data, error} = await supabase.from('user_data').select('*').eq('user_id', 1);
+    console.log(data);
+    if (error) console.error(error);
 })()
