@@ -22,13 +22,13 @@ function initialiseSimulation(selectElement, oldSimState) {
     
     function postSelectionLogic() {
         // just stuff that needs to be done AFTER the switch statement below, but is done regardless of the case
-        selectElement.dataset.lastSelected = selectElement.value;
+        selectElement.dataset.lastselected = selectElement.value;
         cancelAnimationFrame(simulationID);
         isRunning = false;
     }
    
     switch (selectElement.value) {
-        case selectElement.dataset.lastSelected:
+        case selectElement.dataset.lastselected:
             postSelectionLogic();
 
             return oldSimState; // do nothing if select same one
@@ -257,7 +257,6 @@ function initialiseSimulation(selectElement, oldSimState) {
                     const animate = () => {
 
                         clearCanvas();
-                        this.cannon.draw(ctx);
                         this.cannonballs.forEach(ball => {
                             ball.updatePos();
                             if (simulation.showProjectilePath) {ball.drawPath(ctx)}
@@ -265,6 +264,7 @@ function initialiseSimulation(selectElement, oldSimState) {
                             this.projectileHitWall(ball);
                             }
                         )
+                        this.cannon.draw(ctx);
                         
                         if (this.cannonballs.length > 0) {simulationID = requestAnimationFrame(animate)
 
@@ -390,13 +390,14 @@ function initialiseSimulation(selectElement, oldSimState) {
             </div>
 
             <div id="newObjectButtonContainer" style="width: 100%; height: 10%; background-color: #191A25;">
-            <button style="width: 90%; height: 80%; margin-left: 5%; margin-top: 2.5%;" onclick="simulation.cannon.fire()">Fire Cannon</button>
+            <button id="fireCannonButton" style="width: 90%; height: 80%; margin-left: 5%; margin-top: 2.5%;">Fire Cannon</button>
             </div>
 
             `;
 
             rightSidebar.innerHTML = ``;
 
+            document.getElementById('fireCannonButton').addEventListener('click', e => {simulation.cannon.fire()});
 
             document.getElementById('cannonProperties').addEventListener('input', e => {
                     if (e.target.tagName === 'INPUT') {
@@ -450,7 +451,7 @@ function initialiseSimulation(selectElement, oldSimState) {
             break;
             
         case 'Select sim:':
-            selectElement.dataset.lastSelected = selectElement.value;
+            selectElement.dataset.lastselected = selectElement.value;
             // do nothing
             break;
     }
@@ -1433,7 +1434,7 @@ class Cannon {
     }
 
     fire() {
-
+        console.log('fire');
         new Cannonball(this.ballX, this.ballY, this.cannonballVx, this.cannonballVy);
         if (!isRunning) {simulation.runSimulation()};
         
