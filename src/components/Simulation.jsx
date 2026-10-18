@@ -34,7 +34,7 @@ const Simulation = () => {
         <div style={{ width: '25%', display: 'flex', flexDirection: 'column' }}>
           {/* Select sim */}
           <div style={{ width: '50%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-            <select id="selectSim" data-lastselected="" style={{ width: '75%', height: '50%' }} defaultValue="Select sim: ">
+            <select id="selectSim" data-lastselected="" style={{ width: '75%', height: '50%' }} defaultValue="Create your own">
               <option>Select sim:</option>
               <option>Projectile motion</option>
               <option>Momentum</option>

@@ -133,8 +133,6 @@ function initialiseSimulation(selectElement, oldSimState) {
                     ctx.scale(5, 5);
                     console.log(ctx.getTransform());
                     const objectEntries = Array.from(objects.values()); 
-
-                    resizeCanvas();
                     isRunning = true;
 
                     const animate = (timestamp) => {
