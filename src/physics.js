@@ -1,7 +1,7 @@
 // Global variables
 
 let simulation;
-let simulationID;
+let simulationid;
 let isRunning = false;
 
 let canvas = document.getElementById('canvas');
@@ -23,7 +23,7 @@ function initialiseSimulation(selectElement, oldSimState) {
     function postSelectionLogic() {
         // just stuff that needs to be done AFTER the switch statement below, but is done regardless of the case
         selectElement.dataset.lastselected = selectElement.value;
-        cancelAnimationFrame(simulationID);
+        cancelAnimationFrame(simulationid);
         isRunning = false;
     }
    
@@ -171,15 +171,15 @@ function initialiseSimulation(selectElement, oldSimState) {
                         }
                         
                         
-                        if (isRunning) {simulationID = requestAnimationFrame(animate)} // 60fps
+                        if (isRunning) {simulationid = requestAnimationFrame(animate)} // 60fps
                     }
 
-                    simulationID = requestAnimationFrame(animate);
+                    simulationid = requestAnimationFrame(animate);
                 },
 
                 pauseSimulation() {
                     isRunning = false;
-                    cancelAnimationFrame(simulationID);
+                    cancelAnimationFrame(simulationid);
                 },
 
                 stopSimulation() {
@@ -264,19 +264,19 @@ function initialiseSimulation(selectElement, oldSimState) {
                         )
                         this.cannon.draw(ctx);
                         
-                        if (this.cannonballs.length > 0) {simulationID = requestAnimationFrame(animate)
+                        if (this.cannonballs.length > 0) {simulationid = requestAnimationFrame(animate)
 
                         } else {isRunning = false;}
 
                     };
 
-                    simulationID = requestAnimationFrame(animate);
+                    simulationid = requestAnimationFrame(animate);
 
                 },
                 
                 pauseSimulation() {
                     isRunning = false;
-                    cancelAnimationFrame(simulationID);
+                    cancelAnimationFrame(simulationid);
                 },
 
                 projectileHitWall(projectile) {
@@ -592,15 +592,15 @@ function drawOutline(obj) {
 
 class GeneralSimObject {
     
-    static nextID = 0;
+    static nextid = 0;
 
     constructor(projectileToCopy) { // projectileToCopy is not necessarily needed here
 
         // Add to object maps
-        this.ID = String(++GeneralSimObject.nextID);
-        simulation.objects.set(this.ID, this);
+        this.id = String(++GeneralSimObject.nextid);
+        simulation.objects.set(this.id, this);
         simulation.objectToForces.set(this, []);
-        this.name = `Object ${this.ID}`;
+        this.name = `Object ${this.id}`;
 
         this.current = {
             x: Number(),
@@ -635,7 +635,7 @@ class GeneralSimObject {
             let newObjectDiv = document.createElement('div');
             newObjectDiv.style = `width: 100%; height: 20%;`;
             newObjectDiv.className = `objectMenu`;
-            newObjectDiv.id = `object${this.ID}Menu`;
+            newObjectDiv.id = `object${this.id}Menu`;
             objectListContainer.appendChild(newObjectDiv);
             newObjectDiv.innerHTML = `
 
@@ -652,7 +652,7 @@ class GeneralSimObject {
 
                         <div style="width: calc(100% / 3);">
                             
-                            <button data-action="edit" data-ID="${this.ID}" class="objectPropertyButton">
+                            <button data-action="edit" data-id="${this.id}" class="objectPropertyButton">
 
                             <span class="material-symbols-outlined">edit</span>
                             </button>
@@ -660,7 +660,7 @@ class GeneralSimObject {
 
                         <div style="width: calc(100% / 3);">
                             
-                            <button data-action="copy" data-ID="${this.ID}" class="objectPropertyButton">
+                            <button data-action="copy" data-id="${this.id}" class="objectPropertyButton">
 
                             <span class="material-symbols-outlined">content_paste</span>
                             </button>
@@ -668,7 +668,7 @@ class GeneralSimObject {
 
                         <div style="width: calc(100% / 3);">
                             
-                            <button data-action="delete" data-ID="${this.ID}" class="objectPropertyButton">
+                            <button data-action="delete" data-id="${this.id}" class="objectPropertyButton">
 
                             <span class="material-symbols-outlined">delete</span>
                             </button>
@@ -698,15 +698,15 @@ class GeneralSimObject {
 
             // Write HTML directly below current one
 
-            let objectToCopyMenu = document.getElementById(`object${projectileToCopy.ID}Menu`);
-            if (document.getElementById(`editObject${projectileToCopy.ID}`)) {
-                objectToCopyMenu = document.getElementById(`editObject${projectileToCopy.ID}`)
+            let objectToCopyMenu = document.getElementById(`object${projectileToCopy.id}Menu`);
+            if (document.getElementById(`editObject${projectileToCopy.id}`)) {
+                objectToCopyMenu = document.getElementById(`editObject${projectileToCopy.id}`)
             }; // prevents new menu from being written in between objectToCopyMenu and its respective edit menu (if the edit menu is open)
 
             let newObjectDiv = document.createElement('div');
             newObjectDiv.style = `width: 100%; height: 20%;`;
             newObjectDiv.className = `objectMenu`;
-            newObjectDiv.id = `object${this.ID}Menu`;
+            newObjectDiv.id = `object${this.id}Menu`;
 
             objectToCopyMenu.insertAdjacentElement("afterend", newObjectDiv);
             newObjectDiv.innerHTML = `
@@ -723,7 +723,7 @@ class GeneralSimObject {
 
                         <div style="width: calc(100% / 3);">
                             
-                            <button data-action="edit" data-ID="${this.ID}" class="objectPropertyButton">
+                            <button data-action="edit" data-id="${this.id}" class="objectPropertyButton">
 
                             <span class="material-symbols-outlined">edit</span>
                             </button>
@@ -731,7 +731,7 @@ class GeneralSimObject {
 
                         <div style="width: calc(100% / 3);">
                             
-                            <button data-action="copy" data-ID="${this.ID}" class="objectPropertyButton">
+                            <button data-action="copy" data-id="${this.id}" class="objectPropertyButton">
 
                             <span class="material-symbols-outlined">content_paste</span>
                             </button>
@@ -739,7 +739,7 @@ class GeneralSimObject {
 
                         <div style="width: calc(100% / 3);">
                             
-                            <button data-action="delete" data-ID="${this.ID}" class="objectPropertyButton">
+                            <button data-action="delete" data-id="${this.id}" class="objectPropertyButton">
 
                             <span class="material-symbols-outlined">delete</span>
                             </button>
@@ -806,7 +806,7 @@ class GeneralSimObject {
     saveChanges() {
         // Captures inputs from the edit menu and saves them
         simulation.pauseSimulation();
-        document.getElementById(`object${this.ID}PropertyGrid`).querySelectorAll(`input, select`).forEach(element => {
+        document.getElementById(`object${this.id}PropertyGrid`).querySelectorAll(`input, select`).forEach(element => {
             switch (element.name) {
                 case 'x': case 'y': case 'Vx': case 'Vy':
                     this.initial[element.name] = Number(element.value);
@@ -836,7 +836,7 @@ class GeneralSimObject {
     }
 
     closeEditMenu() {
-        document.getElementById(`editObject${this.ID}`).remove(); // gets the menu for this object and removes it
+        document.getElementById(`editObject${this.id}`).remove(); // gets the menu for this object and removes it
     }
 
 
@@ -844,12 +844,12 @@ class GeneralSimObject {
 
         // For when edit button on object menu is clicked 
 
-        if (document.getElementById(`editObject${this.ID}`)) return; // prevents multiple edit menus for the same object
+        if (document.getElementById(`editObject${this.id}`)) return; // prevents multiple edit menus for the same object
 
         // Write HTML
-        let thisMenu = document.getElementById(`object${this.ID}Menu`);
+        let thisMenu = document.getElementById(`object${this.id}Menu`);
         let thisEditMenu = document.createElement('div');
-        thisEditMenu.id = `editObject${this.ID}`;
+        thisEditMenu.id = `editObject${this.id}`;
         thisEditMenu.style = `display: flex; flex-direction: column; height: 60%;`
         thisEditMenu.innerHTML = `
 
@@ -861,7 +861,7 @@ class GeneralSimObject {
                     
                     <div style="height: 80%; display: flex; flex-direction: column;">
 
-                        <div id="object${this.ID}PropertyGrid" class="propertyGrid"; style="width: 90%; height: 100%; align-self: center; justify-self: center;">
+                        <div id="object${this.id}PropertyGrid" class="propertyGrid"; style="width: 90%; height: 100%; align-self: center; justify-self: center;">
                             <label for="editInitialX">X coordinate:</label>
                             <input type="number" id="editInitialX" name="x" value="${this.initial.x}">
 
@@ -899,13 +899,13 @@ class GeneralSimObject {
             
 
                         <div style="display: flex; justify-content: center; align-items: center; margin: 0;">
-                            <button type="button" data-action="saveChanges" data-id="${this.ID}" style="height: 80%; width: 80%;">
+                            <button type="button" data-action="saveChanges" data-id="${this.id}" style="height: 80%; width: 80%;">
                                 Save
                             </button>
                         </div>
 
                         <div style="display: flex; justify-content: center; align-items: center; margin: 0;">
-                            <button type="button" data-action="closeEditMenu" data-id="${this.ID}" style="height: 80%; width: 80%;">
+                            <button type="button" data-action="closeEditMenu" data-id="${this.id}" style="height: 80%; width: 80%;">
                                 Close
                             </button>
                         </div>
@@ -927,16 +927,16 @@ class GeneralSimObject {
     delete() {
 
         // Delete HTML
-        let menu = document.getElementById(`object${this.ID}Menu`);
+        let menu = document.getElementById(`object${this.id}Menu`);
         menu.remove();
-        let editMenu = document.getElementById(`editObject${this.ID}`);
+        let editMenu = document.getElementById(`editObject${this.id}`);
         if (editMenu) {
             editMenu.remove();
         }
 
 
         // Delete object from maps. It is then deleted as all references to it have been deleted.
-        simulation.objects.delete(this.ID);
+        simulation.objects.delete(this.id);
 
         const forces = simulation.objectToForces.get(this);
         if (forces) {
@@ -959,15 +959,15 @@ class GeneralSimObject {
 
 class Force {
 
-    static nextID = 0;
+    static nextid = 0;
 
     constructor(forceToCopy) {
 
         // Add to object maps
-        this.ID = String(++Force.nextID);
-        simulation.forces.set(this.ID, this);
+        this.id = String(++Force.nextid);
+        simulation.forces.set(this.id, this);
         simulation.forceToObjects.set(this, []);
-        this.name = `Force ${this.ID}`;
+        this.name = `Force ${this.id}`;
         this.clickObject = (e) => this.addObjectToThisForce(e);
         this.cachedObjects = [];
         this.cachedDeletedObjects = [];
@@ -985,7 +985,7 @@ class Force {
             let newForceDiv = document.createElement('div');
             newForceDiv.style = `width: 100%; height: 20%;`;
             newForceDiv.className = `objectMenu`;
-            newForceDiv.id = `force${this.ID}Menu`;
+            newForceDiv.id = `force${this.id}Menu`;
             forceListContainer.appendChild(newForceDiv);
             newForceDiv.innerHTML = `
                     <div style="background-color: #0F111A;">
@@ -1001,7 +1001,7 @@ class Force {
 
                         <div style="width: calc(100% / 3);">
                             
-                            <button data-action="edit" data-ID="${this.ID}" class="objectPropertyButton">
+                            <button data-action="edit" data-id="${this.id}" class="objectPropertyButton">
 
                             <span class="material-symbols-outlined">edit</span>
                             </button>
@@ -1009,7 +1009,7 @@ class Force {
 
                         <div style="width: calc(100% / 3);">
                             
-                            <button data-action="copy" data-ID="${this.ID}" class="objectPropertyButton">
+                            <button data-action="copy" data-id="${this.id}" class="objectPropertyButton">
 
                             <span class="material-symbols-outlined">content_paste</span>
                             </button>
@@ -1017,7 +1017,7 @@ class Force {
 
                         <div style="width: calc(100% / 3);">
                             
-                            <button data-action="delete" data-ID="${this.ID}" class="objectPropertyButton">
+                            <button data-action="delete" data-id="${this.id}" class="objectPropertyButton">
 
                             <span class="material-symbols-outlined">delete</span>
                             </button>
@@ -1030,21 +1030,21 @@ class Force {
             this.Fy = forceToCopy.Fy;
             this.startTime = forceToCopy.startTime;
             this.endTime = forceToCopy.endTime;
-            this.ID = String(++Force.nextID);
-            this.name = `Force ${this.ID} (copy of '${forceToCopy.name}')`;
+            this.id = String(++Force.nextid);
+            this.name = `Force ${this.id} (copy of '${forceToCopy.name}')`;
 
             
             // Write HTML
             
-            let forceToCopyMenu = document.getElementById(`force${forceToCopy.ID}Menu`);
-            if (document.getElementById(`editObject${forceToCopy.ID}`)) {
-                objectToCopyMenu = document.getElementById(`editObject${forceToCopy.ID}`)
+            let forceToCopyMenu = document.getElementById(`force${forceToCopy.id}Menu`);
+            if (document.getElementById(`editObject${forceToCopy.id}`)) {
+                objectToCopyMenu = document.getElementById(`editObject${forceToCopy.id}`)
             }; // prevents new menu from being written in between forceToCopyMenu and its respective edit menu (if the edit menu is open)
 
             let newForceDiv = document.createElement('div');
             newForceDiv.style = `width: 100%; height: 20%;`;
             newForceDiv.className = `objectMenu`;
-            newForceDiv.id = `force${this.ID}Menu`;
+            newForceDiv.id = `force${this.id}Menu`;
             forceToCopyMenu.insertAdjacentElement("afterend", newForceDiv);
             newForceDiv.innerHTML = `
             
@@ -1062,7 +1062,7 @@ class Force {
 
                         <div style="width: calc(100% / 3);">
                             
-                            <button data-action="edit" data-ID="${this.ID}" class="objectPropertyButton">
+                            <button data-action="edit" data-id="${this.id}" class="objectPropertyButton">
 
                             <span class="material-symbols-outlined">edit</span>
                             </button>
@@ -1070,7 +1070,7 @@ class Force {
 
                         <div style="width: calc(100% / 3);">
                             
-                            <button data-action="copy" data-ID="${this.ID}" class="objectPropertyButton">
+                            <button data-action="copy" data-id="${this.id}" class="objectPropertyButton">
 
                             <span class="material-symbols-outlined">content_paste</span>
                             </button>
@@ -1078,7 +1078,7 @@ class Force {
 
                         <div style="width: calc(100% / 3);">
                             
-                            <button data-action="delete" data-ID="${this.ID}" class="objectPropertyButton">
+                            <button data-action="delete" data-id="${this.id}" class="objectPropertyButton">
 
                             <span class="material-symbols-outlined">delete</span>
                             </button>
@@ -1093,7 +1093,7 @@ class Force {
     saveChanges() {
         // Captures inputs from the edit menu and saves them
         pauseSimulation();
-        document.getElementById(`force${this.ID}PropertyGrid`).querySelectorAll(`input`).forEach(element => {
+        document.getElementById(`force${this.id}PropertyGrid`).querySelectorAll(`input`).forEach(element => {
             switch (element.type) {
                 case 'text':
                     this[element.name] = String(element.value);
@@ -1105,18 +1105,18 @@ class Force {
     })}
 
     closeEditMenu() {
-        document.getElementById(`editForce${this.ID}`).remove(); // gets the menu for this object and removes it
+        document.getElementById(`editForce${this.id}`).remove(); // gets the menu for this object and removes it
     }
 
     edit() {
 
-        if (document.getElementById(`editForce${this.ID}`)) return; // prevents multiple edit menus for the same object
+        if (document.getElementById(`editForce${this.id}`)) return; // prevents multiple edit menus for the same object
 
         // Write HTML
-        let thisMenu = document.getElementById(`force${this.ID}Menu`);
+        let thisMenu = document.getElementById(`force${this.id}Menu`);
         let thisEditMenu = document.createElement('div');
 
-        thisEditMenu.id = `editForce${this.ID}`;
+        thisEditMenu.id = `editForce${this.id}`;
         thisEditMenu.style = `display: flex; flex-direction: column; height: 60%;`
         thisEditMenu.innerHTML = `
 
@@ -1128,7 +1128,7 @@ class Force {
                     
                     <div style="height: 80%; display: flex; flex-direction: column;">
 
-                        <div id="force${this.ID}PropertyGrid" class="propertyGrid"; style="width: 90%; height: 100%; align-self: center; justify-self: center;">
+                        <div id="force${this.id}PropertyGrid" class="propertyGrid"; style="width: 90%; height: 100%; align-self: center; justify-self: center;">
                             <label>Force X:</label>
                             <input type="number" name="Fx" value="${this.Fx}">
 
@@ -1145,7 +1145,7 @@ class Force {
                             <input type="text" name="name" value="${this.name}">
 
                             <label>Select objects:</label>
-                            <button type="button" data-ID="${this.ID}" data-action="addAffectedObjects">Click</button>
+                            <button type="button" data-id="${this.id}" data-action="addAffectedObjects">Click</button>
                          </div>
                     </div>
             
@@ -1154,13 +1154,13 @@ class Force {
             
 
                         <div style="display: flex; justify-content: center; align-items: center; margin: 0;">
-                            <button type="button" data-action="saveChanges" data-ID="${this.ID}" style="height: 80%; width: 80%;">
+                            <button type="button" data-action="saveChanges" data-id="${this.id}" style="height: 80%; width: 80%;">
                                 Save
                             </button>
                         </div>
 
                         <div style="display: flex; justify-content: center; align-items: center; margin: 0;">
-                            <button type="button" data-action="closeEditMenu" data-ID="${this.ID}" style="height: 80%; width: 80%;">
+                            <button type="button" data-action="closeEditMenu" data-id="${this.id}" style="height: 80%; width: 80%;">
                                 Close
                             </button>
                         </div>
@@ -1178,19 +1178,19 @@ class Force {
 
         // Delete HTML
 
-        const menu = document.getElementById(`force${this.ID}Menu`);
+        const menu = document.getElementById(`force${this.id}Menu`);
         menu.remove();
-        const editMenu = document.getElementById(`editForce${this.ID}`);
+        const editMenu = document.getElementById(`editForce${this.id}`);
         if (editMenu) {
             editMenu.remove();
         }
 
-        if (document.getElementById(`addObjectsToForce${this.ID}`)) {
-            document.getElementById(`addObjectsToForce${this.ID}`).remove();
+        if (document.getElementById(`addObjectsToForce${this.id}`)) {
+            document.getElementById(`addObjectsToForce${this.id}`).remove();
         }
 
 
-        simulation.forces.delete(this.ID);
+        simulation.forces.delete(this.id);
 
         simulation.forceToObjects.delete(this);
 
@@ -1254,7 +1254,7 @@ class Force {
         addObjectsToForceOverlay.innerHTML = `<h2>Click on an object to have force '${this.name}' act on it or click it again to remove it.</h2>`;
         document.querySelector('body').appendChild(addObjectsToForceOverlay);
 
-        let btn = document.getElementById(`force${this.ID}PropertyGrid`).querySelector('button');
+        let btn = document.getElementById(`force${this.id}PropertyGrid`).querySelector('button');
         if (btn.innerHTML === "Click") {
             btn.innerHTML = "Save";
             canvas.addEventListener('click', this.clickObject);
@@ -1323,7 +1323,7 @@ class Cannonball {
         this.current.y += this.current.Vy / 60;
 
 
-        if (simulationID % 3 === 0) {this.path.push({x: this.current.x, y: this.current.y})};
+        if (simulationid % 3 === 0) {this.path.push({x: this.current.x, y: this.current.y})};
 
 
     }
