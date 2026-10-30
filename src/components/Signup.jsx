@@ -1,25 +1,39 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { validateSignup } from '../signup';
+import { Link, useNavigate } from 'react-router-dom';
 import { ErrorBox } from './Login';
+import { signup } from '../lib/supabaseClient';
+
+
 
 const SignupPage = () => {
 
   const [errorMessage, setErrorMessage] = useState(null);
+  const [loading, setLoading] = useState(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     document.getElementById('signupSubmit').addEventListener('click', handleSignup);
   }, []);
 
   async function handleSignup() {
-  
-      const result = await validateSignup();
-  
-      if (result.errorMessage) {
-        setErrorMessage(result.errorMessage);
+
+      const username = document.getElementById('usernameInput').value;
+      const password = document.getElementById('passwordInput').value;
+      const confirmPassword = document.getElementById('passwordConfirmInput').value;
+
+      setLoading(true);
+
+      const result = await signup(username, password, confirmPassword);
+      console.log(result);
+      if (result.error) {
+        setErrorMessage(result.error.message);
+        return;
       } else {
         setErrorMessage(null);
       }
+
+      setLoading(false);
+      navigate('/simulation');
     }
 
   return (

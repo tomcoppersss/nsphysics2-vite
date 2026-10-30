@@ -1,3 +1,5 @@
+// Not used!! Kept for now in case needed.
+
 import { supabase } from './lib/supabaseClient';
 
 export async function validateLogin(username, password) {

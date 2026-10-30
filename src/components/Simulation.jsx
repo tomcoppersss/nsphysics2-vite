@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { logout } from '../lib/supabaseClient.js'
 
 const ObjectSidebar = () => {
   return (
@@ -167,8 +168,14 @@ const SimulationPage = (props) => {
           </div>
         </div>
 
-        <div style={{ width: '25%' }}>
-          <button id="loginButton" style={{ width: '75px', height: '75px' }}>Login</button>
+        <div style={{ width: '25%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+
+          <button type="button" data-action="settings" style={{ width: '75px', height: '75px', marginLeft: '10px' }}>
+            <span style={{ fontSize: '50px' }} className="material-symbols-outlined">settings</span>
+          </button>
+          <button type="button" onClick={logout} style={{ width: '75px', height: '75px', marginLeft: '10px' }}>
+            <span style={{ fontSize: '50px' }} className="material-symbols-outlined">logout</span>
+          </button>
         </div>
       </header>
 

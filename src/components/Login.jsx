@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { validateLogin } from '../login';
-import { login } from '../lib/supabaseClient.js';
+import { login } from '../context/AuthContext';
 
 export const ErrorBox = (props) => {
   return (
@@ -15,39 +14,30 @@ const LoginPage = (props) => {
 
   const [errorMessage, setErrorMessage] = useState(null);
   const [loading, setLoading] = useState(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
       document.getElementById('loginSubmit').addEventListener('click', handleLogin);
     }, []);
 
-  async function handleLogin(e) {
-    e.preventDefault();
-    setLoading(true);
-
-    const username = document.getElementById('usernameInput').value;
-    const password = document.getElementById('passwordInput').value;
-
-    try {
-
-      const result = await validateLogin(username, password);
-
-      if (result.errorMessage) {
-        setErrorMessage(result.errorMessage);
-      } else {
-        setErrorMessage(null);
-        const result = await login(username, password);
-        if (result.success) {
-          useNavigate('/simulation');
-        }
-      }
-
-    } catch (err) {
-      setErrorMessage('An error occured')
-    }
+  async function handleLogin() {
   
+        const username = document.getElementById('usernameInput').value;
+        const password = document.getElementById('passwordInput').value;
 
+        setLoading(true);
+        const result = await login(username, password);
+        console.log(result);
+        if (result.error) {
+          setErrorMessage(result.error.message);
+          return;
+        } else {
+          setErrorMessage(null);
+        }
 
-  }
+        setLoading(false);
+        navigate('/simulation');
+      }
 
   return (
     <div className="centered" style={{width: '12%', height: '20%'}}>
