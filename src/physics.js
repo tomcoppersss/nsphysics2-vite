@@ -11,7 +11,7 @@ let worldWidth = 432;
 let worldHeight = 243;
 let scale;
 
-let cleanupController = new AbortController();
+let cleanupController = new AbortController(); // used to control event listeners
 
 // General sim
 
