@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { login } from '../context/AuthContext';
+import { UserAuth } from '../context/AuthContext';
 
 export const ErrorBox = (props) => {
   return (
@@ -14,11 +14,16 @@ const LoginPage = (props) => {
 
   const [errorMessage, setErrorMessage] = useState(null);
   const [loading, setLoading] = useState(null);
+  const { session, login } = UserAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
       document.getElementById('loginSubmit').addEventListener('click', handleLogin);
     }, []);
+
+  useEffect(() => {
+    if (session) navigate('/simulation');
+  }, [session, navigate]);
 
   async function handleLogin() {
   
@@ -26,18 +31,16 @@ const LoginPage = (props) => {
         const password = document.getElementById('passwordInput').value;
 
         setLoading(true);
-        const result = await login(username, password);
-        console.log(result);
-        if (result.error) {
-          setErrorMessage(result.error.message);
-          return;
+        const { data, errorMessage } = await login(username, password);
+        if (errorMessage) {
+          setErrorMessage(errorMessage);
+          setLoading(false);
         } else {
           setErrorMessage(null);
+          setLoading(false);
         }
 
-        setLoading(false);
-        navigate('/simulation');
-      }
+  }
 
   return (
     <div className="centered" style={{width: '12%', height: '20%'}}>

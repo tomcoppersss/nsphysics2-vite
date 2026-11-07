@@ -1,4 +1,4 @@
-import React from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 
 const AuthContext = createContext();
@@ -25,7 +25,7 @@ export const AuthContextProvider = ({ children }) => {
             {email: toEmail(username), password}
         )
         if (error) {
-            return {success: false, error: error}
+            return {success: false, errorMessage: error.message}
         } else {
             return {success: true, data: data}
         }
@@ -48,7 +48,7 @@ export const AuthContextProvider = ({ children }) => {
         )
         if (error) {
             console.error(error.message, error.status, error.code);
-            return {success: false, error: error}
+            return {success: false, errorMessage: error.message}
         } else {
             return {success: true, data: data}
         }
@@ -58,24 +58,26 @@ export const AuthContextProvider = ({ children }) => {
 
         const { data, error } = await supabase.auth.signOut();
         if (error) {
-            console.log(error)
-            return {success: false, error: error};
+            console.log(error);
+            return {success: false, errorMessage: error.message.message};
         } else {
             return {success: true, data: data};
         }
     }
 
-    useEffect(
+    useEffect(() => {
         supabase.auth.getSession().then(({ data: { session }}) => {
             setSession(session);
         })
+    }, []
     );
 
-    useEffect(
+    useEffect(() => {
         supabase.auth.onAuthStateChange((event, session) => {
             setSession(session);
         })
-    )
+    }, []
+    );
 
     return (
         <AuthContext.Provider value = {{login, logout, signup, session}}>
@@ -85,6 +87,6 @@ export const AuthContextProvider = ({ children }) => {
 }; 
 
 export const UserAuth = () => {
-    useContext(AuthContext);
+    return useContext(AuthContext);
 };
 

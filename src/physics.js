@@ -4,17 +4,117 @@ let simulation;
 let simulationid;
 let isRunning = false;
 
-let canvas = document.getElementById('canvas');
-const ctx = canvas.getContext('2d');
-
+let canvas;
+let ctx;
 
 let worldWidth = 432;
 let worldHeight = 243;
 let scale;
 
+let cleanupController = new AbortController();
+
 // General sim
 
-function initialiseSimulation(selectElement, oldSimState) {
+export function init() {
+
+    canvas = document.getElementById('canvas');
+    ctx = canvas.getContext('2d');
+    simulation = initialiseSimulation('Create your own', null);
+    document.getElementById('selectSimType').value = 'Select sim type:';
+    cleanupController = new AbortController();
+
+    // Event listeners
+
+    window.addEventListener('resize', resizeCanvas, { signal: cleanupController.signal});
+
+    document.getElementById('simulationButtonsContainer').addEventListener('click', e => {
+        const btn = e.target.closest('button');
+        if (!btn) return;
+        simulation[btn.dataset.action]();
+    }, { signal: cleanupController.signal})
+
+    document.getElementById('selectSimType').addEventListener('change', e => {
+        const selectElement = document.getElementById('selectSimType');
+        if (selectElement.value === "Select sim:") return;
+        simulation = initialiseSimulation(selectElement.value, simulation);
+    }, { signal: cleanupController.signal});
+
+    function initCanvas() {
+        // Canvas initialisation 
+
+        // Adapted from https://medium.com/@doomgoober/understanding-html-canvas-scaling-and-sizing-c04925d9a830. Used to fix canvas blurriness.
+
+        const originalWidth = canvas.width;
+        const originalHeight = canvas.height;
+
+        render();
+
+        function render() {
+            let dimensions = getObjectFitSize(
+                true,
+                canvas.clientWidth,
+                canvas.clientHeight,
+                canvas.width,
+                canvas.height
+            );
+
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = dimensions.width * dpr;
+            canvas.height = dimensions.height * dpr;
+
+            let ratio = Math.min(canvas.clientWidth / originalWidth, canvas.clientHeight / originalHeight);
+
+            ctx.scale(ratio * dpr, ratio * dpr);
+            
+        }
+
+        // adapted from: https://www.npmjs.com/package/intrinsic-scale
+        function getObjectFitSize(
+            contains /* true = contain, false = cover */,
+            containerWidth,
+            containerHeight,
+            width,
+            height
+        ) {
+            let doRatio = width / height;
+            let cRatio = containerWidth / containerHeight;
+            let targetWidth = 0;
+            let targetHeight = 0;
+            let test = contains ? doRatio > cRatio : doRatio < cRatio;
+
+            if (test) {
+                targetWidth = containerWidth;
+                targetHeight = targetWidth / doRatio;
+            } else {
+                targetHeight = containerHeight;
+                targetWidth = targetHeight * doRatio;
+            }
+
+            return {
+                width: targetWidth,
+                height: targetHeight,
+                x: (containerWidth - targetWidth) / 2,
+                y: (containerHeight - targetHeight) / 2
+            };
+        }
+    }
+
+    initCanvas();
+    resizeCanvas();
+    
+}
+
+export function cleanup() {
+    
+    if (simulationid) cancelAnimationFrame(simulationid);
+    canvas = null;
+    ctx = null;
+    simulation = null;
+    isRunning = false;
+    cleanupController.abort();
+}
+
+function initialiseSimulation(selectElementValue, oldSimState) {
 
     let leftSidebar = document.getElementById('leftSidebar');
     let rightSidebar = document.getElementById('rightSidebar');
@@ -22,45 +122,38 @@ function initialiseSimulation(selectElement, oldSimState) {
     
     function postSelectionLogic() {
         // just stuff that needs to be done AFTER the switch statement below, but is done regardless of the case
-        selectElement.dataset.lastselected = selectElement.value;
+        document.getElementById('selectSimType').dataset.lastselected = selectElementValue;
         cancelAnimationFrame(simulationid);
         isRunning = false;
     }
    
-    switch (selectElement.value) {
-        case selectElement.dataset.lastselected:
-            postSelectionLogic();
-
-            return oldSimState; // do nothing if select same one
+    switch (selectElementValue) {
 
         case 'Create your own':
             // initialise empty general sim
             postSelectionLogic();
 
-
-
             leftSidebar.innerHTML = `
-                <div style="height: 10%; background-color: #191A25;"><p style="margin: 0">Object creation</p></div>
 
-                <div id="objectListContainer" style="height: 80%; max-height: 80%; overflow-y: scroll;">
-                    
+                <div style="height: 10%; display: flex; flex-direction: column; justify-content: center; align-items: center; border-bottom: 3px solid var(--input-colour);">
+                    <p style="margin: 0;">Object creation</p>
+                    <br>
+                    <button style="width: 80%; height: 30%;" id="newObjectButton">+ New Object</button>
                 </div>
 
-                <div id="newObjectButtonContainer" style="width: 100%; height: 10%; background-color: #191A25;">
-                <button style="width: 90%; height: 80%; margin-left: 5%; margin-top: 2.5%;">+ New Object</button>
+                <div id="objectListContainer" style="height: 90%; max-height: 90%; overflow-y: scroll;">
                 </div>
             `;
 
             rightSidebar.innerHTML = `
-            
-                <div style="height: 10%; background-color: #191A25;"><p style="margin: 0;">Force creation</p></div>
 
-                <div id="forceListContainer" style="height: 80%; max-height: 80%; overflow-y: scroll;">
-                    
+                <div style="height: 10%; display: flex; flex-direction: column; justify-content: center; align-items: center; border-bottom: 3px solid var(--input-colour);">
+                    <p style="margin: 0;">Force creation</p>
+                    <br>
+                    <button style="width: 80%; height: 30%;" id="newForceButton">+ New Force</button>
                 </div>
 
-                <div id="newForceButtonContainer" style="width: 100%; height: 10%; background-color: #191A25;">
-                <button style="width: 90%; height: 80%; margin-left: 5%; margin-top: 2.5%;">+ New Force</button>
+                <div id="forceListContainer" style="height: 90%; max-height: 90%; overflow-y: scroll;">
                 </div>
 
             `;
@@ -76,9 +169,7 @@ function initialiseSimulation(selectElement, oldSimState) {
                 obj[btn.dataset.action]();
             });
 
-            document.getElementById('newObjectButtonContainer').addEventListener('click', e => {
-                const btn = e.target.closest('button');
-                if (!btn) return;
+            document.getElementById('newObjectButton').addEventListener('click', e => {
                 new GeneralSimObject(null);
             });
 
@@ -89,9 +180,7 @@ function initialiseSimulation(selectElement, oldSimState) {
                 force[btn.dataset.action]();
             });
 
-            document.getElementById('newForceButtonContainer').addEventListener('click', e => {
-                let btn = e.target.closest('button');
-                if (!btn) return;
+            document.getElementById('newForceButton').addEventListener('click', e => {
                 new Force(null);
             });
 
@@ -131,9 +220,9 @@ function initialiseSimulation(selectElement, oldSimState) {
                     const canvas = document.getElementById('canvas');
                     const ctx = canvas.getContext("2d");
                     ctx.scale(5, 5);
-                    console.log(ctx.getTransform());
                     const objectEntries = Array.from(objects.values()); 
                     isRunning = true;
+                    resizeCanvas();
 
                     const animate = (timestamp) => {
 
@@ -183,7 +272,6 @@ function initialiseSimulation(selectElement, oldSimState) {
                 },
 
                 stopSimulation() {
-                    console.log('stop');
                     this.pauseSimulation();
                     clearCanvas();
                     this.objects.forEach(obj => {
@@ -217,6 +305,7 @@ function initialiseSimulation(selectElement, oldSimState) {
                         // ground
                         projectile.current.y = projectile.radius;
                         projectile.current.Vy = -(projectile.current.Vy) * restitution;
+
                     }
 
                 }
@@ -234,7 +323,7 @@ function initialiseSimulation(selectElement, oldSimState) {
             sim = {
 
                 type: 'Projectle motion',
-                cannon: new Cannon(45, 50, 10, 10),
+                cannon: new Cannon(45, 50, 10, 5),
                 cannonballs: [],
                 gravity: 9.81,
                 airResistance: 0,
@@ -242,7 +331,6 @@ function initialiseSimulation(selectElement, oldSimState) {
                 showProjectilePath: false,
 
                 updateCanvas() {
-                    console.log('update');
                     clearCanvas();
                     this.cannon.draw(ctx);
                     this.cannonballs.forEach(ball => {ball.draw(ctx)});
@@ -327,7 +415,7 @@ function initialiseSimulation(selectElement, oldSimState) {
                 
                 <p style="width: 100%;">Edit cannon</p>
             
-                <div style="height: calc(100% / 3);">
+                <div>
         
                     <div id="cannonProperties" class="propertyGrid">
 
@@ -346,10 +434,10 @@ function initialiseSimulation(selectElement, oldSimState) {
                     </div>
                 </div>
 
-                <div style="height: calc(100% / 3);">
-                    <div style="height: 10%;">
-                        <p>Edit world</p>
-                    </div>
+                <p style="width: 100%;">Edit world</p>
+
+                <div>
+
                     <div id="simulationProperties" class="propertyGrid">
                         
                         <label for="editGravity">Gravity</label>
@@ -368,11 +456,11 @@ function initialiseSimulation(selectElement, oldSimState) {
                         
                     </div>
                 </div>
+                
+                <p style="width: 100%;">Edit projectiles</p>
 
-                <div style="height: calc(100% / 3);">
-                    <div style="height: 10%;">
-                        <p>Edit projectiles</p>
-                    </div>
+                <div>
+
                     <div id="cannonballProperties"class="propertyGrid">
 
                         <label for="editCannonballMass">Cannonball mass</label>
@@ -448,82 +536,12 @@ function initialiseSimulation(selectElement, oldSimState) {
             // momentum
             break;
             
-        case 'Select sim:':
-            selectElement.dataset.lastselected = selectElement.value;
+        case 'Select sim type:':
             // do nothing
-            break;
+            return oldSimState;
     }
     
 }
-
-
-simulation = initialiseSimulation(document.getElementById('selectSim'), null);
-document.getElementById('selectSim').value = 'Select sim:';
-
-
-
-// Canvas initialisation 
-
-
-// Taken from https://medium.com/@doomgoober/understanding-html-canvas-scaling-and-sizing-c04925d9a830. Used to fix canvas blurriness.
-
-    const originalWidth = canvas.width;
-    const originalHeight = canvas.height;
-
-    render();
-
-    function render() {
-        let dimensions = getObjectFitSize(
-            true,
-            canvas.clientWidth,
-            canvas.clientHeight,
-            canvas.width,
-            canvas.height
-        );
-
-        const dpr = window.devicePixelRatio || 1;
-        canvas.width = dimensions.width * dpr;
-        canvas.height = dimensions.height * dpr;
-
-        let ratio = Math.min(canvas.clientWidth / originalWidth, canvas.clientHeight / originalHeight);
-
-        ctx.scale(ratio * dpr, ratio * dpr);
-        
-    }
-
-    // adapted from: https://www.npmjs.com/package/intrinsic-scale
-    function getObjectFitSize(
-        contains /* true = contain, false = cover */,
-        containerWidth,
-        containerHeight,
-        width,
-        height
-    ) {
-        let doRatio = width / height;
-        let cRatio = containerWidth / containerHeight;
-        let targetWidth = 0;
-        let targetHeight = 0;
-        let test = contains ? doRatio > cRatio : doRatio < cRatio;
-
-        if (test) {
-            targetWidth = containerWidth;
-            targetHeight = targetWidth / doRatio;
-        } else {
-            targetHeight = containerHeight;
-            targetWidth = targetHeight * doRatio;
-        }
-
-        return {
-            width: targetWidth,
-            height: targetHeight,
-            x: (containerWidth - targetWidth) / 2,
-            y: (containerHeight - targetHeight) / 2
-        };
-    }
-
-// End of taken code snippet
-
-
 
 function resizeCanvas() {
 
@@ -534,7 +552,6 @@ function resizeCanvas() {
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
     simulation.updateCanvas();
 }
-resizeCanvas();
 
 function clearCanvas() {
     ctx.clearRect(0, 0, worldWidth, worldHeight);
@@ -554,31 +571,6 @@ function drawOutline(obj) {
 // document.body.appendChild(clone);
 
 
-
-// Event listeners
-
-    window.addEventListener('resize', resizeCanvas);
-
-    document.getElementById('simulationButtonsContainer').addEventListener('click', e => {
-        const btn = e.target.closest('button');
-        if (!btn) return;
-        simulation[btn.dataset.action]();
-    })
-
-    document.getElementById('selectSim').addEventListener('change', e => {
-        const selectElement = document.getElementById('selectSim');
-        if (selectElement.value === "Select sim:") return;
-        simulation = initialiseSimulation(selectElement, simulation);
-        console.log(simulation);
-
-    });
-
-    canvas.addEventListener('click', e => {
-        const rect = canvas.getBoundingClientRect();
-        const mouseX = (e.clientX - rect.left) / scale;
-        const mouseY = (canvas.clientHeight - (e.clientY - rect.top)) / scale;
-        console.log(mouseX, mouseY);
-    })
 
 
 
@@ -639,7 +631,7 @@ class GeneralSimObject {
             objectListContainer.appendChild(newObjectDiv);
             newObjectDiv.innerHTML = `
 
-                    <div style="background-color: #0F111A;">
+                    <div style="background-color: var(--header);">
                         <div class="title">
                             <p style="margin: 0;">${this.name}</p>
                         </div>
@@ -1217,9 +1209,7 @@ class Force {
         simulation.objects.forEach((value) => {
             if (value.isClicked(mouseX, mouseY)) { // Brute force O(n) method 🥱 works for few objects
                 if ((!(simulation.forceToObjects.get(this).includes(value)))) { // this is nested so we fewer comparisons are made. No point checking forceToObjects.get(this).includes(value) when value.isClicked(mouseX, mouseY) is false
-                
-                    console.log(`Force '${this.name}' was added to object '${value.name}'`);
-                    
+
                     simulation.forceToObjects.get(this).push(value);
                     objectToForces.get(value).push(this);
 
@@ -1432,15 +1422,11 @@ class Cannon {
     }
 
     fire() {
-        console.log('fire');
         new Cannonball(this.ballX, this.ballY, this.cannonballVx, this.cannonballVy);
-        if (!isRunning) {simulation.runSimulation()};
-        
+        if (!isRunning) {simulation.runSimulation()};    
     }
 
 }
-
-
 
 function detectCollision(a, b) {
     const dx = a.current.x - b.current.x;

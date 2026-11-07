@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
-import { logout } from '../lib/supabaseClient.js'
+import { UserAuth } from '../context/AuthContext.jsx'
+import { init, cleanup } from '../physics.js';
+import { useNavigate } from 'react-router-dom';
 
 const ObjectSidebar = () => {
   return (
@@ -38,7 +40,7 @@ const ProjectileMotionSidebar = () => {
 
   return (
     <>
-      <div style={{ height: '10%', maxHeight: '10%', backgroundColor: '#191A25' }}>
+      <div style={{ height: '10%', maxHeight: '10%', backgroundColor: 'var(--dark-bg)' }}>
 
         <div style={{ height: '10%', display: 'flex', flexDirection: 'column', marginLeft: '10px' }}>
           <p style={{ width: '100%', height: 'calc(100% / 3)' }}>Edit simulation</p>
@@ -100,7 +102,7 @@ const ProjectileMotionSidebar = () => {
           </div>
         </div>
 
-        <div id='newObjectButtonContainer' style={{ width: '100%', height: '10%', backgroundColor: '#191A25' }}>
+        <div id='newObjectButtonContainer' style={{ width: '100%', height: '10%', backgroundColor: 'var(--dark-bg)' }}>
           <button id='fireCannonButton' style={{ width: '90%', height: '80%', marginLeft: '5%', marginTop: '2.5%' }}>Fire Cannon</button>
         </div>
 
@@ -111,34 +113,23 @@ const ProjectileMotionSidebar = () => {
   )
 }
 
-const GeneralSim = () => {
-  return (
-    <Simulation leftSidebar={<ObjectSidebar />} rightSidebar={<ForceSidebar />}/>
-  )
-}
-
-const ProjectileMotion = () => {
-  return (
-    <Simulation leftSidebar={<ProjectileMotionSidebar />} rightSidebar={null}/>
-  )
-}
-
 const SimulationPage = (props) => {
 
-  useEffect(() => {
-    const script = document.createElement('script');
-    script.src = '/src/physics.js';
-    script.type = 'module';
-    document.getElementById('root').appendChild(script);
+  const { logout } = UserAuth();
 
-    return () => {
-      document.getElementById('root').removeChild(script);
-    };
+  const navigate = useNavigate();
+  const navigateSettings = () => {
+    navigate('/settings');
+  }
+
+  useEffect(() => {
+    init();
+    return () => cleanup();
   }, []);
 
   return (
     <>
-      <header style={{ backgroundColor: '#14151F', height: '10vh', width: '100%', margin: 0, display: 'flex' }}>
+      <header>
         <div style={{ width: '25%', display: 'flex', alignItems: 'center' }}>
           {/* Title */}
           <p style={{ fontSize: '35px', margin: '10px' }}>NS physics simulation</p>
@@ -146,31 +137,41 @@ const SimulationPage = (props) => {
 
         <div id="simulationButtonsContainer" style={{ width: '25%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           {/* Simulation buttons */}
-          <button type="button" id="playPauseSimulation" data-action="playPauseSimulation" style={{ width: '75px', height: '75px' }}>
+          <button type="button" id="playPauseSimulation" data-action="playPauseSimulation" className="simulationButton" style={{margin: '0'}}>
             <span style={{ fontSize: '50px' }} className="material-symbols-outlined">play_pause</span>
           </button>
-          <button type="button" data-action="stopSimulation" style={{ width: '75px', height: '75px', marginLeft: '10px' }}>
+          <button type="button" data-action="stopSimulation" className="simulationButton">
             <span style={{ fontSize: '50px' }} className="material-symbols-outlined">stop_circle</span>
           </button>
-          <button type="button" data-action="updateCanvas" style={{ width: '75px', height: '75px', marginLeft: '10px' }}></button>
-          <button type="button" data-action="runSimulation" style={{ width: '75px', height: '75px', marginLeft: '10px' }}></button>
+          <button type="button" data-action="updateCanvas" className="simulationButton"></button>
+          <button type="button" data-action="runSimulation" className="simulationButton"></button>
         </div>
 
-        <div style={{ width: '25%', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ width: '25%', display: 'flex', flexDirection: 'row' }}>
           {/* Select sim */}
           <div style={{ width: '50%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-            <select id="selectSim" data-lastselected="" style={{ width: '75%', height: '50%' }} defaultValue="Create your own">
-              <option>Select sim:</option>
+            <select id="selectSimType" data-lastselected="" style={{ width: '75%', height: '50%' }} defaultValue="Select sim type:">
+              <option>Select sim type:</option>
               <option>Projectile motion</option>
               <option>Momentum</option>
               <option>Create your own</option>
             </select>
           </div>
+
+          <div style={{ width: '50%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+            <select id="selectSavedSim" data-lastselected="" style={{ width: '75%', height: '50%' }} defaultValue="hi">
+              <option>Select saved sim:</option>
+              <option>Projectile motion</option>
+              <option>Momentum</option>
+              <option>Create your own</option>
+            </select>
+          </div>
+
         </div>
 
         <div style={{ width: '25%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
 
-          <button type="button" data-action="settings" style={{ width: '75px', height: '75px', marginLeft: '10px' }}>
+          <button type="button" onClick={navigateSettings} style={{ width: '75px', height: '75px', marginLeft: '10px' }}>
             <span style={{ fontSize: '50px' }} className="material-symbols-outlined">settings</span>
           </button>
           <button type="button" onClick={logout} style={{ width: '75px', height: '75px', marginLeft: '10px' }}>
@@ -188,7 +189,7 @@ const SimulationPage = (props) => {
           {props.leftSidebar}
         </div>
 
-        <div id="centreContainer" style={{ backgroundColor: '#1E1F2B', width: '70%', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+        <div id="centreContainer" style={{ backgroundColor: 'var(--primary-bg)', width: '70%', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
           <canvas id="canvas"></canvas>
           <div><p></p></div>
         </div>
